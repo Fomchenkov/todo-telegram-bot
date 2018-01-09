@@ -1,8 +1,8 @@
 import TeleBot from 'telebot'
-import * as config from './config'
 import sqliteModule from 'sqlite3'
 
-const bot = new TeleBot(config.BOT_TOKEN)
+const BOT_TOKEN = process.argv[2]
+const bot = new TeleBot(BOT_TOKEN)
 const sqlite3 = sqliteModule.verbose()
 const dbName = 'db.db'
 
