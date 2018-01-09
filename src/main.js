@@ -166,7 +166,8 @@ bot.on(['/start'], message => {
 
 bot.on(['/help'], message => {
 	let replyMarkup = getMainKeyboard()
-	let text = 'Бот для удобного создания заметок'
+	let text = 'ToDoKronverBot — это простой список дел или список задач.'
+	text += ' Запиши в него все свои важные дела, чтобы не забыть'
 	return bot.sendMessage(message.from.id, text, {replyMarkup})
 })
 
