@@ -48,10 +48,10 @@ class Note {
  * @param {int} uid 
  */
 function getUserNotes(uid) {
-	return new Promise((res, rej) => {
+	return new Promise((res) => {
 		let data = []
-        const db = new sqlite3.Database(dbName);
-        db.serialize(() => {
+		const db = new sqlite3.Database(dbName)
+		db.serialize(() => {
 			db.all(`SELECT * FROM notes WHERE owner=${uid} ORDER BY date`, (err, rows) => {
 				if (err) {
 					console.log(err)
@@ -62,8 +62,8 @@ function getUserNotes(uid) {
 				})
 				res(data)
 			})
-        })
-        db.close()
+		})
+		db.close()
 	})
 }
 
@@ -74,19 +74,11 @@ function getUserNotes(uid) {
 async function deleteUserNote(noteId) {
 	const db = new sqlite3.Database(dbName)
 	db.serialize(() => {
-		let stmt = db.prepare('DELETE FROM notes WHERE id=?');
-		stmt.run(noteId);
-		stmt.finalize();
+		let stmt = db.prepare('DELETE FROM notes WHERE id=?')
+		stmt.run(noteId)
+		stmt.finalize()
 	})
 	db.close()
-}
-
-/**
- * Change User Note
- * @param {string} text 
- */
-async function editUserNote(text) {
-
 }
 
 /**
@@ -96,9 +88,9 @@ async function editUserNote(text) {
 async function addUserNote(uid, text, date) {
 	const db = new sqlite3.Database(dbName)
 	db.serialize(() => {
-		let stmt = db.prepare('INSERT INTO notes (owner, text, date) VALUES (?, ?, ?)');
-		stmt.run(uid, text, date);
-		stmt.finalize();
+		let stmt = db.prepare('INSERT INTO notes (owner, text, date) VALUES (?, ?, ?)')
+		stmt.run(uid, text, date)
+		stmt.finalize()
 	})
 	db.close()
 }
@@ -108,9 +100,9 @@ async function addUserNote(uid, text, date) {
  * @param {int} noteId 
  */
 function getNote(noteId) {
-	return new Promise((res, rej) => {
-        const db = new sqlite3.Database(dbName);
-        db.serialize(() => {
+	return new Promise((res) => {
+		const db = new sqlite3.Database(dbName)
+		db.serialize(() => {
 			db.all(`SELECT * FROM notes WHERE id=${noteId}`, (err, rows) => {
 				if (err) {
 					console.log(err)
@@ -121,8 +113,8 @@ function getNote(noteId) {
 					res(new Note(row.id, row.text, row.date))
 				})
 			})
-        })
-        db.close()
+		})
+		db.close()
 	})
 }
 
@@ -210,30 +202,27 @@ bot.on('text', message => {
 			], {resize: true})
 			return bot.sendMessage(cid, 'Введите текст заметки', {replyMarkup})
 		} else if (message.text == '🗓 Все заметки') {
-			getUserNotes(uid).then(notes => {
-				console.log('Notes', notes)
-				if (notes.length == 0) {
-					let text = 'Нет заметок'
-					return bot.sendMessage(cid, text)
+			let notes = await getUserNotes(uid)
+			console.log('Notes', notes)
+			if (notes.length == 0) {
+				let text = 'Нет заметок'
+				return bot.sendMessage(cid, text)
+			}
+			for (let i = 0; i < notes.length; i++) {
+				let text = notes[i].text
+				if (text.length > 300) {
+					text = text.slice(0, 300) + '...'
 				}
-				(async () => {
-					for (let i = 0; i < notes.length; i++) {
-						let text = notes[i].text
-						if (text.length > 300) {
-							text = text.slice(0, 300) + '...'
-						}
-						let date = getNormalDate(notes[i].date)
-						
-						let markup = bot.inlineKeyboard([
-							[
-								bot.inlineButton('⬇️ Развернуть', {callback: `expand_${notes[i].id}`}),
-								bot.inlineButton('❌ Удалить', {callback: `delete_${notes[i].id}`})
-							]
-						])
-						await bot.sendMessage(cid, `${text}\n\n[${date}]`, {markup})
-					}
-				})()
-			}).catch(e => console.log(e))
+				let date = getNormalDate(notes[i].date)
+	
+				let markup = bot.inlineKeyboard([
+					[
+						bot.inlineButton('⬇️ Развернуть', {callback: `expand_${notes[i].id}`}),
+						bot.inlineButton('❌ Удалить', {callback: `delete_${notes[i].id}`})
+					]
+				])
+				await bot.sendMessage(cid, `${text}\n\n[${date}]`, {markup}).catch(e => console.log(e))
+			}
 		}
 	})()
 })
@@ -242,10 +231,46 @@ bot.on('callbackQuery', call => {
 	if (call.data.startsWith('delete')) {
 		let noteId = call.data.split('_')[1]
 		console.log('delete', noteId)
+		let markup = bot.inlineKeyboard([
+			[
+				bot.inlineButton('Удалить', {callback: `truedelete_${noteId}`}),
+				bot.inlineButton('Отмена', {callback: `calceldelete_${noteId}`})
+			]
+		])
+		let fullText = call.message.text
+		bot.editMessageText({
+			chatId: call.message.chat.id, 
+			messageId: call.message.message_id
+		}, fullText, {markup}).catch(error => console.log('Error:', error))
+		bot.answerCallbackQuery(call.id)
+	} else if (call.data.startsWith('truedelete_')) {
+		let noteId = call.data.split('_')[1]
+		console.log('truedelete_', noteId)
 		deleteUserNote(noteId)
 		bot.deleteMessage(call.message.chat.id, 
 			call.message.message_id).catch(e => console.log(e))
 		bot.answerCallbackQuery(call.id, {text: 'Удалено'})
+	} else if (call.data.startsWith('calceldelete')) {
+		let noteId = call.data.split('_')[1]
+		console.log('calceldelete', noteId)
+		getNote(noteId).then(note => {
+			let text = note.text
+			if (text.length > 300) {
+				text = text.slice(0, 300) + '...'
+			}
+			let date = getNormalDate(note.date)
+			let fullText = `${text}\n\n[${date}]`
+			let markup = bot.inlineKeyboard([
+				[
+					bot.inlineButton('⬇️ Развернуть', {callback: `expand_${noteId}`}),
+					bot.inlineButton('❌ Удалить', {callback: `delete_${noteId}`})
+				]
+			])
+			bot.editMessageText({
+				chatId: call.message.chat.id, 
+				messageId: call.message.message_id
+			}, fullText, {markup}).catch(error => console.log('Error:', error))
+		})
 	} else if (call.data.startsWith('expand')) {
 		let noteId = call.data.split('_')[1]
 		console.log('expand', noteId)
@@ -289,7 +314,7 @@ bot.on('callbackQuery', call => {
 				messageId: call.message.message_id
 			}, fullText, {markup}).catch(error => console.log('Error:', error))
 			bot.answerCallbackQuery(call.id)
-		})		
+		})
 	}
 })
 

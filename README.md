@@ -1,7 +1,5 @@
 # ToDo Telegram Bot
 
-# Using
-
 ### Install dependencies
 
 `npm install`
