@@ -4,6 +4,7 @@
   "description": "ToDO telegram bot",
   "main": "main.js",
   "scripts": {
+    "test": "",
     "compile": "npx babel --presets es2015 -d lib/ src/",
     "main": "node ./lib/main.js",
     "go": "npm run compile; npm run main"
