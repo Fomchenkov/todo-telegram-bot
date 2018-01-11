@@ -1,5 +1,6 @@
 import TeleBot from 'telebot'
 import sqliteModule from 'sqlite3'
+import util from './util.js'
 
 const BOT_TOKEN = process.argv[2]
 const bot = new TeleBot(BOT_TOKEN)
@@ -127,29 +128,6 @@ function getMainKeyboard() {
 	], {resize: true})
 }
 
-/**
- * Get Main Keyboard
- * @param {int} timestamp 
- */
-function getNormalDate(timestamp) {
-	let date = new Date()
-	date.setTime(timestamp)
-
-	let date1 = date.getDate()
-	let month = date.getMonth() + 1
-	let hours = date.getHours()
-	let minutes = date.getMinutes()
-
-	if (date1 < 10) date1 = '0' + date1 
-	if (month < 10) month = '0' + month 
-	if (hours < 10) hours = '0' + hours 
-	if (minutes < 10) minutes = '0' + minutes  
-
-	let result = date1 + '.' + month + '.' + date.getFullYear()
-	result += ' ' + hours + ':' + minutes
-	return result
-}
-
 bot.on(['/start'], message => {
 	let replyMarkup = getMainKeyboard()
 	let text = 'Главное меню'
@@ -213,7 +191,7 @@ bot.on('text', message => {
 				if (text.length > 300) {
 					text = text.slice(0, 300) + '...'
 				}
-				let date = getNormalDate(notes[i].date)
+				let date = util.getNormalDate(notes[i].date)
 	
 				let markup = bot.inlineKeyboard([
 					[
@@ -258,7 +236,7 @@ bot.on('callbackQuery', call => {
 			if (text.length > 300) {
 				text = text.slice(0, 300) + '...'
 			}
-			let date = getNormalDate(note.date)
+			let date = util.getNormalDate(note.date)
 			let fullText = `${text}\n\n[${date}]`
 			let markup = bot.inlineKeyboard([
 				[
@@ -270,7 +248,7 @@ bot.on('callbackQuery', call => {
 				chatId: call.message.chat.id, 
 				messageId: call.message.message_id
 			}, fullText, {markup}).catch(error => console.log('Error:', error))
-		})
+		}).catch(e => console.log(e))
 	} else if (call.data.startsWith('expand')) {
 		let noteId = call.data.split('_')[1]
 		console.log('expand', noteId)
@@ -284,14 +262,14 @@ bot.on('callbackQuery', call => {
 			let text = note.text
 			let date = note.date 
 			console.log('date', date)
-			let date1 = getNormalDate(date)
+			let date1 = util.getNormalDate(date)
 			let fullText = `${text}\n\n[${date1}]`
 			bot.editMessageText({
 				chatId: call.message.chat.id, 
 				messageId: call.message.message_id
 			}, fullText, {markup}).catch(error => console.log('Error:', error))
 			bot.answerCallbackQuery(call.id)
-		})		
+		}).catch(e => console.log(e))
 	} else if (call.data.startsWith('rollup')) {
 		let noteId = call.data.split('_')[1]
 		console.log('rollup', noteId)
@@ -307,14 +285,14 @@ bot.on('callbackQuery', call => {
 			if (text.length > 300) {
 				text = text.slice(0, 300) + '...'
 			}
-			let date1 = getNormalDate(date)
+			let date1 = util.getNormalDate(date)
 			let fullText = `${text}\n\n[${date1}]`
 			bot.editMessageText({
 				chatId: call.message.chat.id, 
 				messageId: call.message.message_id
 			}, fullText, {markup}).catch(error => console.log('Error:', error))
 			bot.answerCallbackQuery(call.id)
-		})
+		}).catch(e => console.log(e))
 	}
 })
 
