@@ -8,6 +8,12 @@ const sqlite3 = sqliteModule.verbose()
 const dbName = 'db.db'
 
 let newNoteProcess = {}
+let newBuyProcess = {}
+
+const aboutBotText = 'Бот для создания заметок и списков покупок.'
+const aboutDeveloperText = 'Бот разработан студией Kronver.\n\n\
+Разработчик: @fomchenkov_v\n\
+Официальный бот: @Kronver_bot\n'
 
 /**
  * Deploy Data Base
@@ -16,6 +22,11 @@ async function deployDataBase() {
 	const db = new sqlite3.Database(dbName)
 	db.serialize(() => {
 		db.run('CREATE TABLE IF NOT EXISTS notes (\
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\
+			owner INTEGER NOT NULL,\
+			text TEXT,\
+			date TEXT NOT NULL)')
+		db.run('CREATE TABLE IF NOT EXISTS buys (\
 			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\
 			owner INTEGER NOT NULL,\
 			text TEXT,\
@@ -69,6 +80,30 @@ function getUserNotes(uid) {
 }
 
 /**
+ * Get User Buys
+ * @param {int} uid 
+ */
+function getUserBuys(uid) {
+	return new Promise((res) => {
+		let data = []
+		const db = new sqlite3.Database(dbName)
+		db.serialize(() => {
+			db.all(`SELECT * FROM buys WHERE owner=${uid} ORDER BY date`, (err, rows) => {
+				if (err) {
+					console.log(err)
+					return
+				}
+				rows.forEach((row) => {
+					data.push(new Note(row['id'], row['text'], row['date']))
+				})
+				res(data)
+			})
+		})
+		db.close()
+	})
+}
+
+/**
  * Delete User Note
  * @param {int} noteId 
  */
@@ -83,13 +118,43 @@ async function deleteUserNote(noteId) {
 }
 
 /**
+ * Delete User Buy
+ * @param {int} buyId 
+ */
+async function deleteUserBuy(buyId) {
+	const db = new sqlite3.Database(dbName)
+	db.serialize(() => {
+		let stmt = db.prepare('DELETE FROM buys WHERE id=?')
+		stmt.run(buyId)
+		stmt.finalize()
+	})
+	db.close()
+}
+
+/**
  * Create User Note
- * @param {int} uid 
+ * @param {int} uid
+ * @param {date} date
  */
 async function addUserNote(uid, text, date) {
 	const db = new sqlite3.Database(dbName)
 	db.serialize(() => {
 		let stmt = db.prepare('INSERT INTO notes (owner, text, date) VALUES (?, ?, ?)')
+		stmt.run(uid, text, date)
+		stmt.finalize()
+	})
+	db.close()
+}
+
+/**
+ * Create User Buy
+ * @param {int} uid
+ * @param {date} date
+ */
+async function addUserBuy(uid, text, date) {
+	const db = new sqlite3.Database(dbName)
+	db.serialize(() => {
+		let stmt = db.prepare('INSERT INTO buys (owner, text, date) VALUES (?, ?, ?)')
 		stmt.run(uid, text, date)
 		stmt.finalize()
 	})
@@ -124,7 +189,9 @@ function getNote(noteId) {
  */
 function getMainKeyboard() {
 	return bot.keyboard([
-		['➕ Создать заметку', '🗓 Все заметки']
+		['➕ Создать заметку', '🗓 Все заметки'],
+		['➕ Создать покупку', '🗂 Все покупки'],
+		['ℹ️ О боте', 'ℹ️ О разработчике'],
 	], {resize: true})
 }
 
@@ -157,6 +224,10 @@ bot.on('text', message => {
 				delete newNoteProcess[uid]
 				console.log(newNoteProcess)
 			}
+			if (newBuyProcess[uid]) {
+				delete newBuyProcess[uid]
+				console.log(newBuyProcess)
+			}
 			let text = 'Действие отменено'
 			let replyMarkup = getMainKeyboard()
 			return bot.sendMessage(cid, text, {replyMarkup})
@@ -168,6 +239,15 @@ bot.on('text', message => {
 			console.log(newNoteProcess)
 			let replyMarkup = getMainKeyboard()
 			let text = 'Заметка создана'
+			return bot.sendMessage(cid, text, {replyMarkup})
+		}
+
+		if (newBuyProcess[uid]) {
+			await addUserBuy(uid, message.text, Date.now())
+			delete newBuyProcess[uid]
+			console.log(newBuyProcess)
+			let replyMarkup = getMainKeyboard()
+			let text = 'Покупка создана'
 			return bot.sendMessage(cid, text, {replyMarkup})
 		}
 
@@ -201,6 +281,38 @@ bot.on('text', message => {
 				])
 				await bot.sendMessage(cid, `${text}\n\n[${date}]`, {markup}).catch(e => console.log(e))
 			}
+		} else if (message.text == '➕ Создать покупку') {
+			newBuyProcess[uid] = {}
+			console.log(newBuyProcess)
+			let replyMarkup = bot.keyboard([
+				['⬅️ Назад']
+			], {resize: true})
+			return bot.sendMessage(cid, 'Введите название покупки', {replyMarkup})
+		} else if (message.text == '🗂 Все покупки') {
+			let buys = await getUserBuys(uid)
+			console.log('Byus', buys)
+			if (buys.length == 0) {
+				let text = 'Нет покупок'
+				return bot.sendMessage(cid, text)
+			}
+			for (let i = 0; i < buys.length; i++) {
+				let text = buys[i].text
+				if (text.length > 300) {
+					text = text.slice(0, 300) + '...'
+				}
+				let date = util.getNormalDate(buys[i].date)
+	
+				let markup = bot.inlineKeyboard([
+					[
+						bot.inlineButton('✅ Куплено', {callback: `buyed_${buys[i].id}`})
+					]
+				])
+				await bot.sendMessage(cid, `${text}\n\n[${date}]`, {markup}).catch(e => console.log(e))
+			}
+		} else if (message.text == 'ℹ️ О боте') {
+			return bot.sendMessage(cid, aboutBotText)
+		} else if (message.text == 'ℹ️ О разработчике') {
+			return bot.sendMessage(cid, aboutDeveloperText)
 		}
 	})()
 })
@@ -293,6 +405,13 @@ bot.on('callbackQuery', call => {
 			}, fullText, {markup}).catch(error => console.log('Error:', error))
 			bot.answerCallbackQuery(call.id)
 		}).catch(e => console.log(e))
+	} else if (call.data.startsWith('buyed')) {
+		let buyId = call.data.split('_')[1]
+		console.log('buyed_', buyId)
+		deleteUserBuy(buyId)
+		bot.deleteMessage(call.message.chat.id, 
+			call.message.message_id).catch(e => console.log(e))
+		bot.answerCallbackQuery(call.id, {text: 'Куплено!'})
 	}
 })
 
